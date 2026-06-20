@@ -72,10 +72,22 @@ class PrivyWalletManager {
         headers: { 'Content-Type': 'application/json', ...options.headers },
         ...options
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error ${response.status}:`, errorText);
+        return { error: `Server error (${response.status})` };
+      }
+      
       return await response.json();
     } catch (error) {
-      console.error('API Error:', error);
-      return { error: 'Network error' };
+      console.error('API Network Error:', error);
+      console.error('API URL:', url);
+      // More helpful error message
+      if (error.message.includes('fetch')) {
+        return { error: 'Cannot connect to server. Check your internet connection.' };
+      }
+      return { error: 'Network error - server may be offline' };
     }
   }
 
@@ -361,7 +373,8 @@ class PrivyWalletManager {
         const result = await this.apiCheckUsername(username);
         
         if (result.error) {
-          errorEl.textContent = 'Could not verify';
+          errorEl.textContent = result.error || 'Could not verify - server offline';
+          console.warn('Username check failed:', result.error);
           return false;
         }
 

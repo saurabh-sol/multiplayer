@@ -100,9 +100,13 @@ class Game {
       this.wallet.setGuest();
       this.player.name = 'Guest Hunter';
       
+      // Enable testing mode for guests (bypasses minimum player requirement)
+      this.round.setTestingMode(true);
+      
       // Show loading screen with animation
       this.ui.showLoading(() => {
         this.ui.showGuestWarning();
+        this.ui.showNotification('Testing Mode: No minimum player requirement', 'info', 3000);
         this.enterLobby();
       });
     });
@@ -296,6 +300,9 @@ class Game {
      UPDATE
      ──────────────────────────────────────────── */
   update(deltaTime) {
+    // Update round manager with current online player count
+    this.round.setOnlinePlayerCount(this.onlinePlayers.getOnlineCount());
+    
     const event = this.round.update(deltaTime, this.boxes);
     if (event) this.onRoundStateChange(event);
 
@@ -378,7 +385,10 @@ class Game {
         onlinePlayers: this.onlinePlayers.getOnlineCount(),
         leaderboard: this.onlinePlayers.getLeaderboard(this.player),
         isGuest: this.wallet.isGuest,
-        playerAttributes: this.player.attributes
+        playerAttributes: this.player.attributes,
+        waitingForPlayers: this.round.waitingForPlayers,
+        playersNeeded: this.round.getPlayersNeeded(),
+        isTestingMode: this.round.isTestingMode()
       });
       const secs = this.round.getCountdown();
       if (state === ROUND_STATES.COUNTDOWN && this._prevCountdownSec !== secs) {
@@ -646,13 +656,31 @@ class Game {
     }
     else if (to === ROUND_STATES.RESULTS) {
       const board = this.onlinePlayers.getLeaderboard(this.player);
+      const rewardPool = this.round.getRewardPool();
+      
+      // Calculate reward distribution based on performance
+      const totalBoxes = this.boxes.boxes.filter(b => b.state === 'opened').length || 1;
+      const playerBoxes = this.player.boxesOpened || 0;
+      
+      // Player's share of the reward pool (proportional to boxes opened)
+      const playerShare = Math.floor((playerBoxes / Math.max(totalBoxes, 1)) * rewardPool);
+      
+      // Add the round reward to player's pending tokens (if connected and not guest)
+      if (playerShare > 0 && this.wallet.isConnected() && !this.wallet.isGuest) {
+        this._syncTokensToBackend(playerShare, 'round_reward');
+        this.player.pendingTokens = (this.player.pendingTokens || 0) + playerShare;
+      }
+      
       this.round.setResults({
         roundNumber: this.round.getRoundNumber(),
         playerChests: this.player.boxesOpened,
         playerTokens: this.player.tokensEarned,
         forfeitedTokens: this._forfeitedTokensTotal || 0,
         roundTime: this.round.getRoundTime(),
-        leaderboard: board
+        leaderboard: board,
+        rewardPool: rewardPool,
+        playerReward: playerShare,
+        totalBoxesOpened: totalBoxes
       });
       this.ui.showResults(this.round.getResults(), this.wallet);
     }

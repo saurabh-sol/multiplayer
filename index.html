@@ -295,6 +295,21 @@
         <div class="round-info" id="results-round-number">ROUND #1 RESULTS</div>
       </div>
 
+      <!-- Round Reward Pool Distribution -->
+      <div class="results-reward-pool" id="results-reward-section">
+        <div class="reward-pool-header">
+          <span class="pool-label">Round Reward Pool</span>
+          <span class="pool-amount" id="results-pool-amount">100,000 $HUNT</span>
+        </div>
+        <div class="reward-distribution">
+          <div class="your-share">
+            <span class="share-label">Your Share</span>
+            <span class="share-amount" id="results-your-share">0 $HUNT</span>
+          </div>
+          <div class="share-percentage" id="results-share-percent">0%</div>
+        </div>
+      </div>
+
       <div class="results-grid">
         <!-- Left Side: Stats summary -->
         <div class="card">
@@ -305,15 +320,19 @@
           </div>
           <div class="results-stat-big">
             <div class="value emerald" id="results-loot-tokens">0 $HUNT</div>
-            <div class="label">Tokens Earned</div>
+            <div class="label">Tokens From Chests</div>
+          </div>
+          <div class="results-stat-big gold-highlight">
+            <div class="value gold" id="results-round-reward">0 $HUNT</div>
+            <div class="label">Round Reward</div>
           </div>
           <div class="results-stat-big" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid rgba(63, 69, 102, 0.5);">
             <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Round Stats</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
               <div style="color: var(--text-secondary);">Time Active:</div>
               <div style="color: var(--gold); font-family: var(--font-pixel);" id="results-time">00:00</div>
-              <div style="color: var(--text-secondary);">Compass Used:</div>
-              <div style="color: var(--sapphire); font-family: var(--font-pixel);" id="results-compass">0</div>
+              <div style="color: var(--text-secondary);">Boxes Opened:</div>
+              <div style="color: var(--sapphire); font-family: var(--font-pixel);" id="results-total-boxes">0/0</div>
             </div>
           </div>
         </div>

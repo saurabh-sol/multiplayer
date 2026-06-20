@@ -31,6 +31,15 @@ class RoundManager {
     /** Aggregate results object set at round end */
     this.results = null;
 
+    /** Minimum players required to start a round */
+    this.MIN_PLAYERS_TO_START = 10;
+
+    /** Current online player count */
+    this.onlinePlayerCount = 0;
+
+    /** Whether waiting for more players */
+    this.waitingForPlayers = false;
+
     // ---- internal timers ----
     /** Accumulator for timed states (seconds) */
     this._stateTimer = 0;
@@ -53,11 +62,33 @@ class RoundManager {
 
     /** How long the "refilling boxes" interstitial lasts */
     this.REFILL_DURATION = 5;
+
+    // Reward pool options (randomly selected each round)
+    this.REWARD_POOLS = [25000, 50000, 75000, 100000, 150000, 200000];
+
+    /** Testing mode bypasses minimum player check (for guests) */
+    this._isTestingMode = false;
   }
 
   // -----------------------------------------------------------
   //  Public API
   // -----------------------------------------------------------
+
+  /**
+   * Enable testing mode (bypasses minimum player requirement).
+   * Used for guest players.
+   * @param {boolean} enabled
+   */
+  setTestingMode(enabled) {
+    this._isTestingMode = enabled;
+  }
+
+  /**
+   * @returns {boolean} Whether in testing mode
+   */
+  isTestingMode() {
+    return this._isTestingMode;
+  }
 
   /**
    * Kick off the round system.  Sets state to WAITING and
@@ -71,6 +102,7 @@ class RoundManager {
     this.roundTime = 0;
     this.countdownTime = this.COUNTDOWN_DURATION;
     this.results = null;
+    this.waitingForPlayers = false;
     this.state = ROUND_STATES.WAITING;
   }
 
@@ -89,8 +121,16 @@ class RoundManager {
     this._stateTimer += deltaTime;
 
     switch (this.state) {
-      // ---- WAITING (2 s) ----
+      // ---- WAITING (waits for minimum players) ----
       case ROUND_STATES.WAITING:
+        // Check if we have enough players (skip in guest/testing mode)
+        if (!this.hasEnoughPlayers() && !this._isTestingMode) {
+          this.waitingForPlayers = true;
+          this._stateTimer = 0; // Reset timer while waiting
+          return null;
+        }
+        this.waitingForPlayers = false;
+        
         if (this._stateTimer >= this.WAITING_DURATION) {
           return this._transition(ROUND_STATES.COUNTDOWN);
         }
@@ -231,12 +271,59 @@ class RoundManager {
   }
 
   /**
-   * Calculate the reward pool for the current round number.
+   * Calculate the reward pool for the current round.
+   * Randomly selects from available pool sizes with weighted distribution.
+   * Higher rounds have better chances of larger pools.
    * @private
    * @returns {number}
    */
   _calcRewardPool() {
-    return 100000 + (this.roundNumber - 1) * 50000;
+    // Weight distribution based on round number (higher rounds = better chances for bigger pools)
+    const roundBonus = Math.min(this.roundNumber - 1, 5); // Max bonus at round 6+
+    
+    // Build weighted pool selection
+    const weights = this.REWARD_POOLS.map((pool, idx) => {
+      // Lower pools have base weight, higher pools get bonus from round number
+      const baseWeight = 6 - idx; // 6, 5, 4, 3, 2, 1
+      const bonus = idx <= roundBonus ? roundBonus - idx + 1 : 0;
+      return baseWeight + bonus;
+    });
+    
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (let i = 0; i < this.REWARD_POOLS.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        return this.REWARD_POOLS[i];
+      }
+    }
+    
+    return this.REWARD_POOLS[0]; // Fallback
+  }
+
+  /**
+   * Update online player count for minimum player check.
+   * @param {number} count
+   */
+  setOnlinePlayerCount(count) {
+    this.onlinePlayerCount = count;
+  }
+
+  /**
+   * Check if there are enough players to start the round.
+   * @returns {boolean}
+   */
+  hasEnoughPlayers() {
+    return this.onlinePlayerCount >= this.MIN_PLAYERS_TO_START;
+  }
+
+  /**
+   * Get players needed to start.
+   * @returns {number}
+   */
+  getPlayersNeeded() {
+    return Math.max(0, this.MIN_PLAYERS_TO_START - this.onlinePlayerCount);
   }
 }
 
