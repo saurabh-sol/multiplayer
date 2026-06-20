@@ -14,13 +14,20 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // CORS Configuration - reads from CORS_ORIGINS env var (comma-separated URLs) or allows all
-const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-    : '*';
-app.use((0, cors_1.default)({
-    origin: corsOrigins,
-    credentials: true
-}));
+const envOrigins = process.env.CORS_ORIGINS;
+const corsOrigins = envOrigins && envOrigins.trim().length > 0
+    ? envOrigins.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    : true; // true = reflect request origin (allows all)
+const corsOptions = {
+    origin: Array.isArray(corsOrigins) && corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+// Enable pre-flight for all routes
+app.options('*', (0, cors_1.default)(corsOptions));
+app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
 // Root route
 app.get('/', (req, res) => {
