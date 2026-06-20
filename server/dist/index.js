@@ -13,12 +13,19 @@ const tokens_1 = __importDefault(require("./routes/tokens"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
-// Middleware
+// CORS Configuration - reads from CORS_ORIGINS env var (comma-separated URLs) or allows all
+const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+    : '*';
 app.use((0, cors_1.default)({
-    origin: ['http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:8080', 'http://127.0.0.1:8081', 'http://localhost:3000'],
+    origin: corsOrigins,
     credentials: true
 }));
 app.use(express_1.default.json());
+// Root route
+app.get('/', (req, res) => {
+    res.json({ message: 'Treasure Hunt API Server', status: 'running' });
+});
 // Request logging
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
