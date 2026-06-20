@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: multiplayer-1-j2bs
+    name: multiplayer-2-rwmg
     runtime: node
     rootDir: server
     buildCommand: npm install && npm run build
