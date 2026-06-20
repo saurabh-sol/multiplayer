@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana Treasure Hunt — Pixel Fantasy Adventure</title>
+  <meta name="description" content="Explore a beautiful pixel fantasy map, hunt for hidden treasure chests, and compete with other players in round-based lobby hunts. Connect your Solana wallet to claim real token rewards!">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Main Game Canvas -->
+    <canvas id="game-canvas" width="960" height="640"></canvas>
+
+    <!-- UI Overlay: Notification Toast Layer -->
+    <div id="notification-container"></div>
+
+    <!-- UI Overlay: Landing / Login Screen -->
+    <div id="landing-screen">
+      <h1 class="landing-title">SOLANA<br>TREASURE HUNT</h1>
+      <p class="landing-subtitle">Pixel Fantasy Edition</p>
+      
+      <!-- Centerpiece Chest Animation Placeholder container -->
+      <div class="landing-chest">
+        <!-- Enhanced Pixel Art Treasure Chest -->
+        <svg viewBox="0 0 48 48" width="100%" height="100%" shape-rendering="crispEdges">
+          <!-- Shadow -->
+          <ellipse cx="24" cy="42" rx="18" ry="4" fill="rgba(0,0,0,0.3)"/>
+          <!-- Chest Base -->
+          <rect x="6" y="20" width="36" height="18" fill="#5d4037"/>
+          <rect x="8" y="22" width="32" height="14" fill="#8d6e63"/>
+          <!-- Wood grain -->
+          <rect x="8" y="24" width="32" height="2" fill="#4a3728" opacity="0.5"/>
+          <rect x="8" y="28" width="32" height="2" fill="#4a3728" opacity="0.5"/>
+          <!-- Gold trim sides -->
+          <rect x="6" y="20" width="4" height="18" fill="#daa520"/>
+          <rect x="38" y="20" width="4" height="18" fill="#daa520"/>
+          <!-- Chest lid (closed) -->
+          <rect x="4" y="14" width="40" height="8" fill="#4a3728"/>
+          <rect x="6" y="16" width="36" height="6" fill="#6d4c41"/>
+          <!-- Gold trim lid -->
+          <rect x="4" y="14" width="4" height="8" fill="#ffd700"/>
+          <rect x="40" y="14" width="4" height="8" fill="#ffd700"/>
+          <!-- Lock -->
+          <rect x="22" y="26" width="4" height="6" fill="#ffd700"/>
+          <circle cx="24" cy="29" r="1" fill="#3e2723"/>
+          <!-- Sparkle effects -->
+          <rect x="12" y="8" width="2" height="2" fill="#ffd700" opacity="0.8">
+            <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+          </rect>
+          <rect x="34" y="10" width="2" height="2" fill="#ffd700" opacity="0.6">
+            <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1.2s" repeatCount="indefinite"/>
+          </rect>
+        </svg>
+      </div>
+
+      <div class="landing-buttons">
+        <button id="btn-connect-wallet" class="btn btn-primary">Connect Solana Wallet</button>
+        <button id="btn-play-guest" class="btn btn-secondary">Play as Guest</button>
+      </div>
+    </div>
+
+    <!-- UI Overlay: Game Lobby Screen -->
+    <div id="lobby-screen" class="hidden">
+      <div class="lobby-header">
+        <h2>HUNTER'S LOBBY</h2>
+        <div class="round-badge" id="lobby-round-number">ROUND #1</div>
+      </div>
+
+      <div class="lobby-grid">
+        <!-- Round Info Card -->
+        <div class="card">
+          <div class="card-title">Round Parameters</div>
+          <div class="stat-row">
+            <span class="stat-label">Lobby Status:</span>
+            <span class="stat-value" id="lobby-status-badge">
+              <span class="status-badge waiting"><span class="status-dot"></span>Waiting</span>
+            </span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Reward Pool:</span>
+            <span class="stat-value gold" id="lobby-reward-pool">100,000 $HUNT</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Map Area:</span>
+            <span class="stat-value">60 x 45 tiles (Pixel Fantasy)</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Online Hunters:</span>
+            <span class="stat-value emerald" id="lobby-online-count">1 Connected</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Chests This Round:</span>
+            <span class="stat-value" id="lobby-chest-count">35 Hidden</span>
+          </div>
+        </div>
+
+        <!-- Player Attributes Card -->
+        <div class="card">
+          <div class="card-title">Your Hunter Attributes</div>
+          <div class="player-attributes" id="lobby-attributes">
+            <div class="attr-bar">
+              <span class="attr-bar-label">Hunting</span>
+              <div class="attr-bar-track">
+                <div class="attr-bar-fill hunting" style="width: 25%"></div>
+              </div>
+              <span class="attr-bar-value" id="attr-hunting">5</span>
+            </div>
+            <div class="attr-bar">
+              <span class="attr-bar-label">Tracking</span>
+              <div class="attr-bar-track">
+                <div class="attr-bar-fill tracking" style="width: 25%"></div>
+              </div>
+              <span class="attr-bar-value" id="attr-tracking">5</span>
+            </div>
+            <div class="attr-bar">
+              <span class="attr-bar-label">Speed</span>
+              <div class="attr-bar-track">
+                <div class="attr-bar-fill speed" style="width: 25%"></div>
+              </div>
+              <span class="attr-bar-value" id="attr-speed">5</span>
+            </div>
+            <div class="attr-bar">
+              <span class="attr-bar-label">Luck</span>
+              <div class="attr-bar-track">
+                <div class="attr-bar-fill luck" style="width: 25%"></div>
+              </div>
+              <span class="attr-bar-value" id="attr-luck">5</span>
+            </div>
+          </div>
+          <div class="player-attributes-info" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(63, 69, 102, 0.5);">
+            <p style="font-size: 10px; color: var(--text-secondary); line-height: 1.5;">
+              <strong style="color: var(--gold);">Hunting:</strong> Faster chest opening<br>
+              <strong style="color: var(--sapphire);">Tracking:</strong> Better detection range<br>
+              <strong style="color: var(--emerald);">Speed:</strong> Faster movement<br>
+              <strong style="color: var(--amethyst);">Luck:</strong> Better loot chances
+            </p>
+          </div>
+        </div>
+
+        <!-- Leaderboard Card -->
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-title">Leaderboard (Previous Round)</div>
+          <ul class="leaderboard" id="lobby-leaderboard-list">
+            <li>
+              <span class="rank">#1</span>
+              <span class="name">ShadowHunter</span>
+              <span class="score">32 chests (5,000 $HUNT)</span>
+            </li>
+            <li>
+              <span class="rank">#2</span>
+              <span class="name">CrystalFox</span>
+              <span class="score">28 chests (3,200 $HUNT)</span>
+            </li>
+            <li>
+              <span class="rank">#3</span>
+              <span class="name">EmberKnight</span>
+              <span class="score">24 chests (2,100 $HUNT)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Guest Warnings -->
+      <div id="lobby-guest-warning" class="guest-warning hidden">
+        <span class="guest-warning-icon">⚠️</span>
+        <div class="guest-warning-text">
+          <strong>Practice Mode Active</strong>
+          Guest mode is for practice only. Connect a Solana wallet using Privy to receive real $HUNT tokens.
+        </div>
+      </div>
+
+      <!-- Countdown Panel -->
+      <div class="countdown-display">
+        <div class="countdown-number" id="lobby-countdown-timer">10</div>
+        <div class="countdown-label">Seconds until hunt begins</div>
+      </div>
+    </div>
+
+    <!-- UI Overlay: Active Gameplay HUD -->
+    <div id="game-hud" class="hidden">
+      <!-- Online Players Bar -->
+      <div class="online-players-bar">
+        <span class="online-dot"></span>
+        <span class="online-count" id="online-count">1</span> Players Online
+      </div>
+      
+      <!-- Top HUD Stats -->
+      <div class="hud-top">
+        <div class="hud-stat">
+          <span class="hud-stat-icon">📦</span>
+          <div>
+            <div class="hud-stat-label">Chests Left</div>
+            <div class="hud-stat-value" id="hud-chests-left">0 / 0</div>
+          </div>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-icon">🪙</span>
+          <div>
+            <div class="hud-stat-label">Reward Pool</div>
+            <div class="hud-stat-value" id="hud-reward-pool">100K $HUNT</div>
+          </div>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-icon">⏱️</span>
+          <div>
+            <div class="hud-stat-label">Time</div>
+            <div class="hud-stat-value" id="hud-round-timer">00:00</div>
+          </div>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-icon">🏆</span>
+          <div>
+            <div class="hud-stat-label">Rank</div>
+            <div class="hud-stat-value emerald" id="hud-hunter-rank">#1</div>
+          </div>
+        </div>
+        <div class="hud-stat" id="hud-wallet-stat">
+          <span class="hud-stat-icon">👛</span>
+          <div>
+            <div class="hud-stat-label">Wallet</div>
+            <div class="hud-stat-value text-emerald" id="hud-wallet-address">Guest</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Left Status Bar & Inventory -->
+      <div class="hud-bottom-left">
+        <!-- Energy Pool -->
+        <div class="energy-bar-container">
+          <div class="energy-label">
+            <span>⚡ ENERGY</span>
+            <span id="hud-energy-text">100 / 100</span>
+          </div>
+          <div class="energy-bar">
+            <div class="energy-bar-fill" id="hud-energy-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Quick Item Inventory slots -->
+        <div class="inventory-bar">
+          <div class="inventory-slot" id="inv-slot-compass" title="Treasure Compass (1) - Reveals nearest chest">
+            <span style="font-size: 18px;">🧭</span>
+            <span class="count" id="inv-compass-count">0</span>
+          </div>
+          <div class="inventory-slot" id="inv-slot-boots" title="Speed Boots (2) - Movement boost">
+            <span style="font-size: 18px;">👢</span>
+            <span class="count" id="inv-boots-count">0</span>
+          </div>
+          <div class="inventory-slot" id="inv-slot-potion" title="Energy Potion (3) - Restores 50 energy">
+            <span style="font-size: 18px;">🧪</span>
+            <span class="count" id="inv-potion-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Right Actions -->
+      <div class="hud-top-right">
+        <button class="hud-btn" id="hud-btn-profile" title="Profile & Buildings">👤</button>
+        <button class="hud-btn" id="hud-btn-help" title="Help/Controls">❓</button>
+        <button class="hud-btn" id="hud-btn-audio" title="Toggle audio">🔊</button>
+        <button class="hud-btn btn-danger" id="hud-btn-leave" title="Leave Lobby" style="background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);">🚪</button>
+      </div>
+
+      <!-- Bottom Right: Minimap Radar Panel -->
+      <div class="hud-bottom-right">
+        <div class="minimap-container">
+          <canvas id="minimap-canvas" width="140" height="100"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- UI Overlay: Results Screen -->
+    <div id="results-screen" class="hidden">
+      <div class="results-header">
+        <h2>HUNT COMPLETED!</h2>
+        <div class="round-info" id="results-round-number">ROUND #1 RESULTS</div>
+      </div>
+
+      <div class="results-grid">
+        <!-- Left Side: Stats summary -->
+        <div class="card">
+          <div class="card-title">Your Loot</div>
+          <div class="results-stat-big">
+            <div class="value" id="results-loot-chests">0</div>
+            <div class="label">Chests Opened</div>
+          </div>
+          <div class="results-stat-big">
+            <div class="value emerald" id="results-loot-tokens">0 $HUNT</div>
+            <div class="label">Tokens Earned</div>
+          </div>
+          <div class="results-stat-big" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid rgba(63, 69, 102, 0.5);">
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Round Stats</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
+              <div style="color: var(--text-secondary);">Time Active:</div>
+              <div style="color: var(--gold); font-family: var(--font-pixel);" id="results-time">00:00</div>
+              <div style="color: var(--text-secondary);">Compass Used:</div>
+              <div style="color: var(--sapphire); font-family: var(--font-pixel);" id="results-compass">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Leaderboard summary -->
+        <div class="card">
+          <div class="card-title">Final Standings</div>
+          <ul class="leaderboard" id="results-leaderboard-list">
+            <!-- Populated via script -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- Reward Claim Warnings -->
+      <div id="results-forfeit-warning" class="forfeit-warning hidden">
+        <p>⚠️ <strong>FORFEITED REWARDS WARNING</strong><br>
+          You found reward boxes but were playing as a Guest. 
+          Connect your Solana wallet to participate in $HUNT mainnet reward allocations.
+        </p>
+      </div>
+
+      <!-- Next Round Timer -->
+      <div class="countdown-display">
+        <div class="countdown-number" id="results-countdown-timer">15</div>
+        <div class="countdown-label">Seconds until next round refills</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Scripts Load Order (Standard HTML Loading) -->
+  <script src="js/constants.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/boxes.js"></script>
+  <script src="js/compass.js"></script>
+  <script src="js/privy-wallet.js"></script>
+  <script src="js/round.js"></script>
+  <script src="js/online-players.js"></script>
+  <script src="js/buildings.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
