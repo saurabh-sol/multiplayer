@@ -27,6 +27,7 @@ class RoundManager {
 
   start() {
     this._started = true;
+    this.exploreMode = false;
     this.roundNumber = 1;
     this.rewardPool = this._calcRewardPool();
     this.rewardPoolRemaining = this.rewardPool;
@@ -39,8 +40,36 @@ class RoundManager {
     this.state = ROUND_STATES.WAITING;
   }
 
+  /** Guest explore — skip lobby/wallet wait and roam the map freely */
+  startGuestExplore() {
+    this._started = true;
+    this.exploreMode = true;
+    this.roundNumber = 0;
+    this.rewardPool = REWARD_POOLS[0];
+    this.rewardPoolRemaining = this.rewardPool;
+    this.totalDistributed = 0;
+    this._stateTimer = 0;
+    this.roundTime = 0;
+    this.countdownTime = 0;
+    this.results = null;
+    this.waitingForPlayers = false;
+    this.state = ROUND_STATES.LIVE;
+  }
+
+  isExploreMode() {
+    return !!this.exploreMode;
+  }
+
   update(deltaTime, boxManager) {
     if (!this._started || !this.state) return null;
+
+    if (this.exploreMode) {
+      if (this.state === ROUND_STATES.LIVE) {
+        this.roundTime += deltaTime;
+      }
+      return null;
+    }
+
     this._stateTimer += deltaTime;
 
     switch (this.state) {

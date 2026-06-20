@@ -103,7 +103,7 @@ class Game {
 
       this.ui.showLoading(() => {
         this.ui.showGuestWarning();
-        this.enterLobby();
+        this.enterGuestExplore();
       });
     });
 
@@ -200,10 +200,48 @@ class Game {
     this.ui.showLobby(this.round, this.wallet, this.onlinePlayers, this.player);
     this.audio.startMusic();
 
-    // Retry any pending sync operations
     if (this.wallet.isConnected() && !this.wallet.isGuest) {
       this._retryPendingSync();
     }
+
+    if (!this.isRunning) {
+      this.isRunning = true;
+      requestAnimationFrame((t) => this.gameLoop(t));
+    }
+  }
+
+  enterGuestExplore() {
+    if (!this.tokenBillboard._refreshTimer) {
+      this.tokenBillboard.init().catch((err) => {
+        console.warn('Token billboard init failed:', err);
+      });
+    }
+
+    this.round.startGuestExplore();
+    this.onlinePlayers.start(this.wallet);
+    this.onlinePlayers.setRoundContext(this.round.getRoundNumber(), ROUND_STATES.LIVE);
+    this.audio.startMusic();
+
+    const points = this.map.getSpawnPoints(80);
+    this.boxes.spawnBoxes(points, 1);
+    this.boxes.allocateTokenPool(this.round.getRewardPool());
+    this.round.rewardPoolRemaining = this.round.getRewardPool();
+
+    this.player.x = MAP_WIDTH / 2;
+    this.player.y = MAP_HEIGHT / 2;
+    this.player.resetRoundStats();
+    this.player.regenEnergy();
+    this.activeOpeningBox = null;
+    this._forfeitedTokensTotal = 0;
+    this._camInitialized = false;
+    this.particles.clear();
+    this.compass.deactivate();
+
+    this.ui.showGame();
+    this.ui.showNotification(
+      'Explore mode — roam freely and open gold chests. Connect wallet to join reward rounds.',
+      'info', 5000
+    );
 
     if (!this.isRunning) {
       this.isRunning = true;
@@ -381,6 +419,7 @@ class Game {
         rewardPool: this.round.getRewardPool(),
         rewardPoolRemaining: this.round.getRewardPoolRemaining(),
         totalDistributed: this.round.getTotalDistributed(),
+        isExploreMode: this.round.isExploreMode(),
         onlinePlayers: this.onlinePlayers.getOnlineCount(),
         walletPlayers: this.onlinePlayers.getWalletPlayerCount(),
         onlinePlayerList: this.onlinePlayers.getOnlinePlayerList(),
@@ -659,6 +698,8 @@ class Game {
      ROUND STATE TRANSITIONS
      ──────────────────────────────────────────── */
   onRoundStateChange(event) {
+    if (this.round.isExploreMode()) return;
+
     const to = event.to;
 
     if (to === ROUND_STATES.LIVE) {

@@ -164,11 +164,18 @@ class UIManager {
 
     document.getElementById('hud-chests-left').innerText = `${data.boxesRemaining} / ${data.totalBoxes}`;
 
-    const pool = data.rewardPool ?? 0;
-    if (pool >= 1000) {
-      document.getElementById('hud-reward-pool').innerText = `${(pool / 1000).toFixed(0)}K $HUNT`;
+    const poolEl = document.getElementById('hud-reward-pool');
+    if (data.isExploreMode) {
+      poolEl.innerText = 'Explore Mode';
+      poolEl.className = 'hud-stat-value';
     } else {
-      document.getElementById('hud-reward-pool').innerText = `${pool.toLocaleString()} $HUNT`;
+      poolEl.className = 'hud-stat-value';
+      const pool = data.rewardPool ?? 0;
+      if (pool >= 1000) {
+        poolEl.innerText = `${(pool / 1000).toFixed(0)}K $HUNT`;
+      } else {
+        poolEl.innerText = `${pool.toLocaleString()} $HUNT`;
+      }
     }
 
     const earnedEl = document.getElementById('hud-tokens-earned');
@@ -301,7 +308,7 @@ class UIManager {
   }
 
   showGuestWarning() {
-    this.showNotification('Guest mode: explore freely, but connect wallet to earn $HUNT from reward chests.', 'warning', 4500);
+    this.showNotification('Guest explore mode — roam the map freely. Connect wallet to earn $HUNT rewards.', 'info', 4500);
   }
 
   updateLobby(data) {
