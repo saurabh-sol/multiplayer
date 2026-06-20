@@ -148,6 +148,21 @@ class Game {
     document.getElementById('inv-slot-potion').addEventListener('click', () => this.usePotionItem());
     this.canvas.addEventListener('mousedown', (e) => this.handleCanvasClick(e));
 
+    // Retry pending syncs when coming back online
+    window.addEventListener('online', () => {
+      if (this.wallet.isConnected() && !this.wallet.isGuest) {
+        this.ui.showNotification('Connection restored. Syncing data...', 'success', 2000);
+        this._retryPendingSync();
+      }
+    });
+
+    // Periodically retry pending syncs (every 30 seconds)
+    setInterval(() => {
+      if (this._pendingSyncQueue && this._pendingSyncQueue.length > 0 && navigator.onLine) {
+        this._retryPendingSync();
+      }
+    }, 30000);
+
     window.gameInstance = this;
     this.ui.showLanding();
   }
@@ -176,6 +191,11 @@ class Game {
     this.onlinePlayers.start(this.wallet);
     this.ui.showLobby(this.round, this.wallet, this.onlinePlayers, this.player);
     this.audio.startMusic();
+
+    // Retry any pending sync operations
+    if (this.wallet.isConnected() && !this.wallet.isGuest) {
+      this._retryPendingSync();
+    }
 
     if (!this.isRunning) {
       this.isRunning = true;
@@ -473,10 +493,17 @@ class Game {
   }
 
   /* ────────────────────────────────────────────
-     BACKEND SYNC METHODS
+     BACKEND SYNC METHODS (with retry queue)
      ──────────────────────────────────────────── */
-  async _syncPointsToBackend(points) {
+  
+  // Queue for failed sync operations
+  _pendingSyncQueue = [];
+  _isSyncing = false;
+
+  async _syncPointsToBackend(points, retryCount = 0) {
     if (!this.wallet.address) return;
+    
+    const maxRetries = 3;
     
     try {
       const response = await fetch(`${API_BASE_URL}/players/update-points`, {
@@ -489,20 +516,36 @@ class Game {
         })
       });
       
+      if (!response.ok) throw new Error('Server error');
+      
       const data = await response.json();
       if (data.success && this.wallet.user) {
         this.wallet.user.points = data.points;
       }
     } catch (error) {
-      console.warn('Failed to sync points:', error);
+      console.warn(`Failed to sync points (attempt ${retryCount + 1}):`, error);
+      
+      if (retryCount < maxRetries) {
+        // Retry after delay (exponential backoff)
+        const delay = Math.pow(2, retryCount) * 1000;
+        setTimeout(() => {
+          this._syncPointsToBackend(points, retryCount + 1);
+        }, delay);
+      } else {
+        // Add to pending queue for later sync
+        this._pendingSyncQueue.push({ type: 'points', points, timestamp: Date.now() });
+        this.ui.showNotification('Points saved locally. Will sync when online.', 'warning', 2000);
+      }
     }
   }
 
-  async _syncTokensToBackend(amount, source) {
+  async _syncTokensToBackend(amount, source, retryCount = 0) {
     if (!this.wallet.address) return;
     
+    const maxRetries = 3;
+    
     try {
-      await fetch(`${API_BASE_URL}/tokens/add`, {
+      const response = await fetch(`${API_BASE_URL}/tokens/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -511,8 +554,48 @@ class Game {
           source: source
         })
       });
+      
+      if (!response.ok) throw new Error('Server error');
     } catch (error) {
-      console.warn('Failed to sync tokens:', error);
+      console.warn(`Failed to sync tokens (attempt ${retryCount + 1}):`, error);
+      
+      if (retryCount < maxRetries) {
+        const delay = Math.pow(2, retryCount) * 1000;
+        setTimeout(() => {
+          this._syncTokensToBackend(amount, source, retryCount + 1);
+        }, delay);
+      } else {
+        this._pendingSyncQueue.push({ type: 'tokens', amount, source, timestamp: Date.now() });
+        this.ui.showNotification('Tokens saved locally. Will sync when online.', 'warning', 2000);
+      }
+    }
+  }
+
+  // Retry pending sync operations
+  async _retryPendingSync() {
+    if (this._isSyncing || this._pendingSyncQueue.length === 0) return;
+    
+    this._isSyncing = true;
+    const queue = [...this._pendingSyncQueue];
+    this._pendingSyncQueue = [];
+    
+    for (const item of queue) {
+      try {
+        if (item.type === 'points') {
+          await this._syncPointsToBackend(item.points);
+        } else if (item.type === 'tokens') {
+          await this._syncTokensToBackend(item.amount, item.source);
+        }
+      } catch (e) {
+        // Re-add to queue if still failing
+        this._pendingSyncQueue.push(item);
+      }
+    }
+    
+    this._isSyncing = false;
+    
+    if (this._pendingSyncQueue.length === 0 && queue.length > 0) {
+      this.ui.showNotification('All pending data synced!', 'success', 2000);
     }
   }
 

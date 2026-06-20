@@ -197,9 +197,35 @@ class BuildingsManager {
     if (this.isModalOpen) return;
     this.isModalOpen = true;
 
+    // Show loading overlay first
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'wallet-modal-overlay';
+    loadingOverlay.id = 'profile-loading-overlay';
+    loadingOverlay.innerHTML = `
+      <div class="wallet-modal wallet-modal-small">
+        <div class="loading-spinner" style="margin: 40px auto;">
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+        </div>
+        <p style="text-align: center; color: #9ca3af;">Loading profile...</p>
+      </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+
     // Refresh data from backend
-    await this.fetchBuildings();
-    await this._refreshUserData();
+    let dataError = false;
+    try {
+      await this.fetchBuildings();
+      await this._refreshUserData();
+    } catch (error) {
+      console.warn('Failed to fetch profile data:', error);
+      dataError = true;
+    }
+
+    // Remove loading overlay
+    const loadingEl = document.getElementById('profile-loading-overlay');
+    if (loadingEl) document.body.removeChild(loadingEl);
 
     const overlay = document.createElement('div');
     overlay.className = 'wallet-modal-overlay';
@@ -210,8 +236,20 @@ class BuildingsManager {
     const userPoints = this.wallet.user?.points || 0;
     
     // Get pending tokens from backend
-    const tokenData = await this.getPendingTokens();
+    let tokenData = { totalPending: 0 };
+    try {
+      tokenData = await this.getPendingTokens();
+    } catch (e) {
+      console.warn('Failed to fetch pending tokens:', e);
+    }
     const pendingTokens = tokenData.totalPending || 0;
+    
+    // Show offline warning if data fetch failed
+    const offlineWarning = dataError ? `
+      <div class="claim-warning" style="margin-bottom: 16px;">
+        <p>⚠️ Could not connect to server. Showing cached data.</p>
+      </div>
+    ` : '';
 
     overlay.innerHTML = `
       <div class="wallet-modal profile-modal">
@@ -219,6 +257,8 @@ class BuildingsManager {
           <h3>${this.wallet.username || 'Hunter Profile'}</h3>
           <p class="wallet-modal-subtitle">${this.wallet.getDisplayAddress()}</p>
         </div>
+        
+        ${offlineWarning}
         
         <div class="profile-stats">
           <div class="profile-stat">
