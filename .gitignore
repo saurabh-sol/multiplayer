@@ -6,9 +6,9 @@ server/node_modules/
 .env
 server/.env
 
-# Build outputs
-dist/
-server/dist/
+# Build outputs (keeping server/dist for deployment)
+# dist/
+# server/dist/
 
 # Logs
 *.log
