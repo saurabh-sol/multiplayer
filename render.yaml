@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: multiplayer-utlw
+    name: multiplayer-1-j2bs
     runtime: node
     rootDir: server
     buildCommand: npm install && npm run build

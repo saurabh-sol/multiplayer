@@ -26,7 +26,7 @@ const API_BASE_URL = (() => {
   if (host === 'localhost' || host === '127.0.0.1') {
     return 'http://localhost:3001/api';
   }
-  return 'https://multiplayer-utlw.onrender.com/api';
+  return 'https://multiplayer-1-j2bs.onrender.com/api';
 })();
 
 // Two-tier box system: Normal (visible) and Hidden (require detection)
