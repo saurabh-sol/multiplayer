@@ -17,6 +17,62 @@ class UIManager {
     document.getElementById('landing-screen').classList.remove('hidden');
   }
 
+  showLoading(onComplete) {
+    this.hideAll();
+    this.currentScreen = 'loading';
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.classList.remove('hidden');
+    
+    const progressBar = document.getElementById('loading-progress-bar');
+    const statusText = document.getElementById('loading-status');
+    const tipText = document.getElementById('loading-tip');
+    
+    const tips = [
+      "TIP: Hidden boxes contain special rewards and tokens!",
+      "TIP: Build a Storage Room to safely store your points!",
+      "TIP: The compass reveals the nearest treasure chest!",
+      "TIP: Higher tracking skill helps detect hidden boxes!",
+      "TIP: Jackpot boxes can contain 5000+ tokens!",
+      "TIP: Use Speed Boots to move faster across the map!",
+      "TIP: Energy Potions restore your stamina instantly!"
+    ];
+    
+    const statuses = [
+      "Connecting to server...",
+      "Loading map data...",
+      "Spawning treasures...",
+      "Preparing your adventure...",
+      "Almost ready..."
+    ];
+    
+    let progress = 0;
+    let statusIndex = 0;
+    
+    // Random tip
+    tipText.textContent = tips[Math.floor(Math.random() * tips.length)];
+    
+    const interval = setInterval(() => {
+      progress += Math.random() * 15 + 5;
+      if (progress > 100) progress = 100;
+      
+      progressBar.style.width = progress + '%';
+      
+      // Update status text
+      const newStatusIndex = Math.min(Math.floor(progress / 25), statuses.length - 1);
+      if (newStatusIndex !== statusIndex) {
+        statusIndex = newStatusIndex;
+        statusText.textContent = statuses[statusIndex];
+      }
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          if (onComplete) onComplete();
+        }, 500);
+      }
+    }, 200);
+  }
+
   showLobby(roundManager, walletManager, fakeMultiplayer, player) {
     this.hideAll();
     this.currentScreen = 'lobby';
@@ -299,6 +355,7 @@ class UIManager {
     document.getElementById('lobby-screen').classList.add('hidden');
     document.getElementById('game-hud').classList.add('hidden');
     document.getElementById('results-screen').classList.add('hidden');
+    document.getElementById('loading-screen')?.classList.add('hidden');
   }
 }
 

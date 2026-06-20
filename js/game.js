@@ -85,8 +85,12 @@ class Game {
       if (connected) {
         this.player.name = this.wallet.getUsername();
         this.buildings.wallet = this.wallet;
-        this.buildings.fetchBuildings(); // Fetch buildings data
-        this.enterLobby();
+        this.buildings.fetchBuildings();
+        
+        // Show loading screen with animation
+        this.ui.showLoading(() => {
+          this.enterLobby();
+        });
       }
     });
 
@@ -95,8 +99,12 @@ class Game {
       this.audio.playClick();
       this.wallet.setGuest();
       this.player.name = 'Guest Hunter';
-      this.ui.showGuestWarning();
-      this.enterLobby();
+      
+      // Show loading screen with animation
+      this.ui.showLoading(() => {
+        this.ui.showGuestWarning();
+        this.enterLobby();
+      });
     });
 
     document.getElementById('hud-btn-leave').addEventListener('click', () => {
