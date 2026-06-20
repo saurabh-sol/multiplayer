@@ -10,6 +10,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const players_1 = __importDefault(require("./routes/players"));
 const buildings_1 = __importDefault(require("./routes/buildings"));
 const tokens_1 = __importDefault(require("./routes/tokens"));
+const config_1 = __importDefault(require("./routes/config"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
@@ -43,6 +44,7 @@ app.use('/api/auth', auth_1.default);
 app.use('/api/players', players_1.default);
 app.use('/api/buildings', buildings_1.default);
 app.use('/api/tokens', tokens_1.default);
+app.use('/api/config', config_1.default);
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -49,7 +49,7 @@ class Compass {
     // Apply needle wobble based on Tracking Skill
     // Max tracking (20) gives 1.0 accuracy (no wobble)
     // Min tracking (1) gives 0.0 accuracy (heavy wobble)
-    const tracking = player.attributes.tracking;
+    const tracking = player.getEffectiveTracking?.() ?? player.attributes.tracking;
     this.accuracy = Math.min(1.0, tracking / 20);
 
     const maxWobble = (1.0 - this.accuracy) * 0.8; // max wobble radians (~45 degrees)

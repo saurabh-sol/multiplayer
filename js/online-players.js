@@ -1,6 +1,6 @@
 /* ============================================
    TREZO — OnlinePlayersManager
-   Real-time presence sync + remote player rendering
+   Real-time presence sync + smooth remote rendering
    ============================================ */
 
 class OnlinePlayersManager {
@@ -9,8 +9,8 @@ class OnlinePlayersManager {
     this.remotePlayers = [];
     this.onlinePlayerList = [];
     this.lastSync = 0;
-    this.syncInterval = 2000;
-    this.pollInterval = 1500;
+    this.syncInterval = 120;
+    this.pollInterval = 1200;
     this._syncTimer = null;
     this._pollTimer = null;
     this.wallet = null;
@@ -83,6 +83,7 @@ class OnlinePlayersManager {
     const game = window.gameInstance;
     const name = this.wallet?.getUsername?.() || this.wallet?.username || game?.player?.name || 'Guest Hunter';
     const boxesOpened = game?.player?.boxesOpened || 0;
+    const tokensEarned = game?.player?.tokensEarned || 0;
 
     try {
       await fetch(`${API_BASE_URL}/players/presence`, {
@@ -93,13 +94,14 @@ class OnlinePlayersManager {
           name,
           walletAddress: this.wallet?.address || null,
           isGuest: !!this.wallet?.isGuest,
-          x: Math.round(x),
-          y: Math.round(y),
+          x: Math.round(x * 10) / 10,
+          y: Math.round(y * 10) / 10,
           direction,
           roundNumber: this.roundNumber,
           roundState: this.roundState,
           color: this.playerColor,
-          boxesOpened
+          boxesOpened,
+          tokensEarned
         })
       });
     } catch (error) {
@@ -114,15 +116,27 @@ class OnlinePlayersManager {
 
       const data = await response.json();
       this.onlineCount = Math.max(1, data.count || 1);
-      this.remotePlayers = (data.players || []).map(p => ({
-        ...p,
-        width: 32,
-        height: 40,
-        isMoving: false,
-        frameIndex: 0,
-        animTimer: 0
-      }));
       this.onlinePlayerList = data.allPlayers || data.players || [];
+
+      const existing = new Map(this.remotePlayers.map(p => [p.sessionId, p]));
+      this.remotePlayers = (data.players || []).map(p => {
+        const prev = existing.get(p.sessionId);
+        const targetX = p.x ?? prev?.targetX ?? 0;
+        const targetY = p.y ?? prev?.targetY ?? 0;
+        return {
+          ...p,
+          width: 32,
+          height: 40,
+          x: prev?.x ?? targetX,
+          y: prev?.y ?? targetY,
+          targetX,
+          targetY,
+          direction: p.direction || prev?.direction || 'down',
+          isMoving: false,
+          frameIndex: prev?.frameIndex || 0,
+          animTimer: prev?.animTimer || 0
+        };
+      });
     } catch (error) {
       console.warn('Failed to fetch presence:', error);
     }
@@ -130,6 +144,14 @@ class OnlinePlayersManager {
 
   getOnlineCount() {
     return this.onlineCount;
+  }
+
+  getWalletPlayerCount() {
+    const list = this.onlinePlayerList.length ? this.onlinePlayerList : [];
+    if (list.length === 0) {
+      return this.wallet?.isGuest ? 0 : 1;
+    }
+    return list.filter(p => !p.isGuest).length;
   }
 
   getOnlinePlayerList() {
@@ -145,7 +167,44 @@ class OnlinePlayersManager {
     return [self, ...others];
   }
 
-  update() {}
+  update(deltaTime) {
+    for (const bot of this.remotePlayers) {
+      if (bot.targetX === undefined) bot.targetX = bot.x;
+      if (bot.targetY === undefined) bot.targetY = bot.y;
+
+      const dx = bot.targetX - bot.x;
+      const dy = bot.targetY - bot.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 120) {
+        bot.x = bot.targetX;
+        bot.y = bot.targetY;
+      } else if (dist > 0.5) {
+        const lerp = 1 - Math.pow(0.00001, deltaTime * 10);
+        bot.x += dx * lerp;
+        bot.y += dy * lerp;
+      }
+
+      bot.isMoving = dist > 2;
+
+      if (bot.isMoving) {
+        if (Math.abs(dy) > Math.abs(dx) * 0.6) {
+          bot.direction = dy < 0 ? 'up' : 'down';
+        }
+        if (Math.abs(dx) > 2) {
+          bot.direction = dx < 0 ? 'left' : 'right';
+        }
+        bot.animTimer += deltaTime;
+        if (bot.animTimer >= 0.18) {
+          bot.animTimer -= 0.18;
+          bot.frameIndex = (bot.frameIndex + 1) % 2;
+        }
+      } else {
+        bot.frameIndex = 0;
+        bot.animTimer = 0;
+      }
+    }
+  }
 
   reset() {
     this.remotePlayers = [];
@@ -165,12 +224,12 @@ class OnlinePlayersManager {
       list.push({
         name: remote.name,
         boxesOpened: remote.boxesOpened || 0,
-        tokensEarned: 0,
+        tokensEarned: remote.tokensEarned || 0,
         isPlayer: false
       });
     }
 
-    return list.sort((a, b) => b.boxesOpened - a.boxesOpened);
+    return list.sort((a, b) => b.tokensEarned - a.tokensEarned || b.boxesOpened - a.boxesOpened);
   }
 
   render(ctx, camera) {
@@ -178,8 +237,8 @@ class OnlinePlayersManager {
     const p = 2;
 
     for (const bot of this.remotePlayers) {
-      const sx = Math.round(bot.x - camera.x);
-      const sy = Math.round(bot.y - camera.y);
+      const sx = Math.floor(bot.x - camera.x);
+      const sy = Math.floor(bot.y - camera.y);
 
       if (sx < -48 || sx > camera.width + 48 || sy < -48 || sy > camera.height + 48) continue;
 
@@ -209,6 +268,7 @@ class OnlinePlayersManager {
       const EYE = '#222';
       const BELT = '#8D6E63';
       const BOOT = '#5D4037';
+      const legOff = bot.isMoving ? (bot.frameIndex === 0 ? 1 : -1) : 0;
 
       if (drawDir === 'down' || drawDir === 'left' || drawDir === 'right') {
         px(6, 0, HAIR); px(7, 0, HAIR); px(8, 0, HAIR); px(9, 0, HAIR);
@@ -220,7 +280,7 @@ class OnlinePlayersManager {
         px(4, 8, TUNIC); px(5, 8, TUNIC); px(6, 8, TUNIC); px(7, 8, TUNIC); px(8, 8, TUNIC); px(9, 8, TUNIC); px(10, 8, TUNIC); px(11, 8, TUNIC);
         px(5, 10, BELT); px(6, 10, BELT); px(7, 10, BELT); px(8, 10, BELT); px(9, 10, BELT); px(10, 10, BELT);
         px(5, 11, TUNIC); px(6, 11, TUNIC); px(7, 11, TUNIC); px(8, 11, TUNIC); px(9, 11, TUNIC); px(10, 11, TUNIC);
-        px(6, 13, BOOT); px(9, 13, BOOT);
+        px(6 + legOff, 13, BOOT); px(9 - legOff, 13, BOOT);
       }
 
       ctx.restore();

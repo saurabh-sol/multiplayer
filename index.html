@@ -104,12 +104,16 @@
             <span class="stat-value">60 x 45 tiles (Pixel Fantasy)</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Online Hunters:</span>
-            <span class="stat-value emerald" id="lobby-online-count">1 Connected</span>
+            <span class="stat-label">Wallet Hunters:</span>
+            <span class="stat-value emerald" id="lobby-wallet-count">0 / 10</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Chests This Round:</span>
-            <span class="stat-value" id="lobby-chest-count">35 Hidden</span>
+            <span class="stat-label">Online Hunters:</span>
+            <span class="stat-value" id="lobby-online-count">1 Connected</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Treasure Chests:</span>
+            <span class="stat-value" id="lobby-chest-count">65 Total</span>
           </div>
         </div>
 
@@ -213,15 +217,22 @@
         <div class="hud-stat">
           <span class="hud-stat-icon">📦</span>
           <div>
-            <div class="hud-stat-label">Chests Left</div>
-            <div class="hud-stat-value" id="hud-chests-left">0 / 0</div>
+            <div class="hud-stat-label">Treasure Chests Remaining</div>
+            <div class="hud-stat-value" id="hud-chests-left">0 / 65</div>
           </div>
         </div>
         <div class="hud-stat">
           <span class="hud-stat-icon">🪙</span>
           <div>
-            <div class="hud-stat-label">Pool Left</div>
-            <div class="hud-stat-value" id="hud-reward-pool">100K $HUNT</div>
+            <div class="hud-stat-label">Reward Pool</div>
+            <div class="hud-stat-value" id="hud-reward-pool">25K $HUNT</div>
+          </div>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-icon">💰</span>
+          <div>
+            <div class="hud-stat-label">Your Earned</div>
+            <div class="hud-stat-value emerald" id="hud-tokens-earned">0 $HUNT</div>
           </div>
         </div>
         <div class="hud-stat">
@@ -301,10 +312,10 @@
         </div>
         <div class="reward-distribution">
           <div class="your-share">
-            <span class="share-label">Your Share</span>
+            <span class="share-label">Total Distributed</span>
             <span class="share-amount" id="results-your-share">0 $HUNT</span>
           </div>
-          <div class="share-percentage" id="results-share-percent">0%</div>
+          <div class="share-percentage" id="results-share-percent">100%</div>
         </div>
       </div>
 
@@ -322,7 +333,7 @@
           </div>
           <div class="results-stat-big gold-highlight">
             <div class="value gold" id="results-round-reward">0 $HUNT</div>
-            <div class="label">Round Reward</div>
+            <div class="label">Your Total Earned</div>
           </div>
           <div class="results-stat-big" style="margin-top: 16px; padding-top: 16px; border-top: 2px solid rgba(63, 69, 102, 0.5);">
             <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Round Stats</div>
@@ -371,6 +382,7 @@
   <script src="js/privy-wallet.js"></script>
   <script src="js/round.js"></script>
   <script src="js/online-players.js"></script>
+  <script src="js/token-billboard.js"></script>
   <script src="js/buildings.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>

@@ -49,6 +49,7 @@ class Game {
     this.round = new RoundManager();
     this.onlinePlayers = new OnlinePlayersManager();
     this.ui = new UIManager();
+    this.tokenBillboard = new TokenBillboardService();
 
     this.lastTime = 0;
     this.isRunning = false;
@@ -99,14 +100,9 @@ class Game {
       this.audio.playClick();
       this.wallet.setGuest();
       this.player.name = 'Guest Hunter';
-      
-      // Enable testing mode for guests (bypasses minimum player requirement)
-      this.round.setTestingMode(true);
-      
-      // Show loading screen with animation
+
       this.ui.showLoading(() => {
         this.ui.showGuestWarning();
-        this.ui.showNotification('Testing Mode: No minimum player requirement', 'info', 3000);
         this.enterLobby();
       });
     });
@@ -123,7 +119,7 @@ class Game {
 
     document.getElementById('hud-btn-help').addEventListener('click', () => {
       this.ui.showNotification(
-        "Controls: WASD/Arrows to move | Click chests to open | 1/2/3 for items | Find all token chests to win!",
+        "Controls: WASD/Arrows to move | Click chests to open | Purple = $HUNT rewards | Gold = boosts & items",
         "info", 5000
       );
     });
@@ -168,6 +164,9 @@ class Game {
     }, 30000);
 
     window.gameInstance = this;
+    this.tokenBillboard.init().catch((err) => {
+      console.warn('Token billboard init failed:', err);
+    });
     this.ui.showLanding();
   }
 
@@ -191,6 +190,11 @@ class Game {
      LOBBY / LEAVE
      ──────────────────────────────────────────── */
   enterLobby() {
+    if (!this.tokenBillboard._refreshTimer) {
+      this.tokenBillboard.init().catch((err) => {
+        console.warn('Token billboard init failed:', err);
+      });
+    }
     this.round.start();
     this.onlinePlayers.start(this.wallet);
     this.ui.showLobby(this.round, this.wallet, this.onlinePlayers, this.player);
@@ -209,6 +213,7 @@ class Game {
 
   leaveGame() {
     this.isRunning = false;
+    this.tokenBillboard.destroy();
     this.wallet.disconnect();
     this.onlinePlayers.stop();
     this.particles.clear();
@@ -300,9 +305,8 @@ class Game {
      UPDATE
      ──────────────────────────────────────────── */
   update(deltaTime) {
-    // Update round manager with current online player count
-    this.round.setOnlinePlayerCount(this.onlinePlayers.getOnlineCount());
-    
+    this.round.setWalletPlayerCount(this.onlinePlayers.getWalletPlayerCount());
+
     const event = this.round.update(deltaTime, this.boxes);
     if (event) this.onRoundStateChange(event);
 
@@ -314,7 +318,7 @@ class Game {
       this.compass.update(this.player, this.boxes, deltaTime);
       this.particles.update(deltaTime);
       this.onlinePlayers.setRoundContext(this.round.getRoundNumber(), state);
-      this.onlinePlayers.update();
+      this.onlinePlayers.update(deltaTime);
 
       // --- Atmosphere cycle ---
       this._atmosphereTime += deltaTime;
@@ -360,14 +364,14 @@ class Game {
 
       // --- HUD telemetry ---
       const leaderboard = this.onlinePlayers.getLeaderboard(this.player);
-      const myRank = 1; // Single player for now
+      const myRank = leaderboard.findIndex(e => e.isPlayer) + 1 || 1;
       const invMap = {};
       this.player.inventory.forEach(item => { invMap[item.type] = item.quantity; });
 
       this.ui.updateHUD({
         energy: this.player.attributes.energy,
-        boxesRemaining: this.boxes.getClaimableRemaining(),
-        totalBoxes: this.boxes.boxes.filter(b => b.isClaimable).length,
+        boxesRemaining: this.boxes.getRemaining(),
+        totalBoxes: this.boxes.getTotal(),
         roundTime: this.round.getRoundTime(),
         rank: myRank,
         tokensEarned: this.player.tokensEarned,
@@ -376,7 +380,9 @@ class Game {
         isGuest: this.wallet.isGuest,
         rewardPool: this.round.getRewardPool(),
         rewardPoolRemaining: this.round.getRewardPoolRemaining(),
+        totalDistributed: this.round.getTotalDistributed(),
         onlinePlayers: this.onlinePlayers.getOnlineCount(),
+        walletPlayers: this.onlinePlayers.getWalletPlayerCount(),
         onlinePlayerList: this.onlinePlayers.getOnlinePlayerList(),
         playerName: this.player.name
       });
@@ -387,15 +393,15 @@ class Game {
         roundNumber: this.round.getRoundNumber(),
         state: state,
         countdown: this.round.getCountdown(),
-        totalBoxes: 30 + this.round.getRoundNumber() * 5,
+        totalBoxes: ROUND_CONFIG.TOTAL_CHESTS,
         rewardPool: this.round.getRewardPool(),
         onlinePlayers: this.onlinePlayers.getOnlineCount(),
+        walletPlayers: this.onlinePlayers.getWalletPlayerCount(),
         leaderboard: this.onlinePlayers.getLeaderboard(this.player),
         isGuest: this.wallet.isGuest,
         playerAttributes: this.player.attributes,
         waitingForPlayers: this.round.waitingForPlayers,
-        playersNeeded: this.round.getPlayersNeeded(),
-        isTestingMode: this.round.isTestingMode()
+        playersNeeded: this.round.getWalletPlayersNeeded()
       });
       const secs = this.round.getCountdown();
       if (state === ROUND_STATES.COUNTDOWN && this._prevCountdownSec !== secs) {
@@ -403,8 +409,24 @@ class Game {
         if (secs > 0) this.audio.playCountdown();
       }
     }
-    else if (state === ROUND_STATES.RESULTS) {
-      this.ui.updateResults({ nextCountdown: this.round.getCountdown() });
+    else if (state === ROUND_STATES.RESULTS || state === ROUND_STATES.REFILLING) {
+      this.ui.updateResults({ nextCountdown: this.round.getPhaseCountdown() });
+      if (state === ROUND_STATES.REFILLING) {
+        this.ui.updateLobby({
+          roundNumber: this.round.getRoundNumber() + 1,
+          state: 'REFILLING',
+          countdown: this.round.getPhaseCountdown(),
+          totalBoxes: ROUND_CONFIG.TOTAL_CHESTS,
+          rewardPool: this.round.getRewardPool(),
+          onlinePlayers: this.onlinePlayers.getOnlineCount(),
+          walletPlayers: this.onlinePlayers.getWalletPlayerCount(),
+          leaderboard: this.onlinePlayers.getLeaderboard(this.player),
+          isGuest: this.wallet.isGuest,
+          playerAttributes: this.player.attributes,
+          waitingForPlayers: false,
+          playersNeeded: 0
+        });
+      }
     }
   }
 
@@ -420,95 +442,86 @@ class Game {
     this.particles.emitCoinBurst(box.x, box.y);
 
     const config = box.config;
-    const rarity = config.rarity;
-    const isHidden = box.visibility === 'hidden';
+    const rarity = config.rarity || 'common';
+    const rewards = [];
 
-    // Screen shake based on rarity
-    if (rarity === 'legendary') {
-      this.screenShake.intensity = 14;
-      this.particles.emitConfetti(box.x, box.y);
-    } else if (rarity === 'epic') {
-      this.screenShake.intensity = 10;
+    if (rarity === 'legendary' || rarity === 'epic') {
+      this.screenShake.intensity = rarity === 'legendary' ? 14 : 10;
+      if (rarity === 'legendary') this.particles.emitConfetti(box.x, box.y);
     } else if (rarity === 'rare') {
       this.screenShake.intensity = 7;
     } else {
       this.screenShake.intensity = 4;
     }
 
-    const rewards = [];
-
-    // 1. Points reward (all boxes can have points)
-    if (box.points > 0) {
-      this.player.pointsEarned = (this.player.pointsEarned || 0) + box.points;
-      rewards.push(`+${box.points} Points`);
-      
-      // Sync points to backend
-      if (this.wallet.isConnected() && !this.wallet.isGuest) {
-        this._syncPointsToBackend(box.points);
-      }
-    }
-
-    // 2. Token reward (hidden token/jackpot boxes)
-    if (box.tokenReward > 0) {
-      // Deduct from round pool — round ends when pool hits 0
-      this.round.consumeFromPool(box.tokenReward);
+    if (box.isRewardChest && box.tokenReward > 0) {
+      const amount = box.tokenReward;
+      this.round.consumeFromPool(amount);
 
       if (this.wallet.isGuest) {
-        this._forfeitedTokensTotal = (this._forfeitedTokensTotal || 0) + box.tokenReward;
+        this._forfeitedTokensTotal = (this._forfeitedTokensTotal || 0) + amount;
         this.ui.showNotification(
-          `Found ${box.tokenReward.toLocaleString()} $HUNT! Connect wallet to claim.`, 
-          "warning", 4000
+          `Found ${amount.toLocaleString()} $HUNT! Connect wallet to claim.`,
+          'warning', 4000
         );
       } else {
-        // Store as pending token for later claim via storage room
-        this.player.pendingTokens = (this.player.pendingTokens || 0) + box.tokenReward;
-        this.player.tokensEarned += box.tokenReward;
-        rewards.push(`+${box.tokenReward.toLocaleString()} $HUNT`);
-        this.audio.playReward(rarity);
-        
-        // Sync tokens to backend
-        this._syncTokensToBackend(box.tokenReward, isHidden ? 'hidden_box' : 'normal_box');
+        this.player.pendingTokens = (this.player.pendingTokens || 0) + amount;
+        this.player.tokensEarned += amount;
+        rewards.push(`+${amount.toLocaleString()} $HUNT`);
+        this.audio.playReward('rare');
+        this._syncTokensToBackend(amount, 'reward_chest');
       }
     }
 
-    // 3. Special skill (hidden special/jackpot boxes)
+    if (box.type === 'NORMAL_ENERGY' && config.energyRestore) {
+      this.player.attributes.energy = Math.min(100, this.player.attributes.energy + config.energyRestore);
+      rewards.push(`+${config.energyRestore} Energy`);
+      this.audio.playReward('common');
+    }
+
+    if (box.type === 'NORMAL_SPEED' && config.speedBoost) {
+      this.player.speedBoostTime = Math.max(this.player.speedBoostTime, config.speedBoost);
+      rewards.push(`Speed Boost ${config.speedBoost}s`);
+      this.audio.playReward('uncommon');
+    }
+
+    if (box.type === 'NORMAL_TRACKING' && config.trackingBoost) {
+      this.player.trackingBoostTime = Math.max(this.player.trackingBoostTime, config.trackingBoost * 5);
+      rewards.push(`Tracking Boost ${config.trackingBoost * 5}s`);
+      this.audio.playReward('uncommon');
+    }
+
+    if (box.type === 'NORMAL_LUCK' && config.luckBoost) {
+      this.player.luckBoostTime = Math.max(this.player.luckBoostTime, config.luckBoost * 5);
+      rewards.push(`Luck Boost ${config.luckBoost * 5}s`);
+      this.audio.playReward('uncommon');
+    }
+
     if (box.skill) {
       this.player.activeSkills = this.player.activeSkills || [];
-      this.player.activeSkills.push({
-        ...box.skill,
-        expiresAt: Date.now() + 60000 // 60 seconds
-      });
+      this.player.activeSkills.push({ ...box.skill, expiresAt: Date.now() + 60000 });
       rewards.push(`★ ${box.skill.name}`);
-      this.ui.showNotification(
-        `Special Skill: ${box.skill.name} - ${box.skill.description}`, 
-        "success", 5000
-      );
+      this.ui.showNotification(`Skill: ${box.skill.name} — ${box.skill.description}`, 'success', 5000);
       this.audio.playReward('epic');
     }
 
-    // 4. Item loot (item boxes)
     if (box.loot) {
-      if (box.loot.type === 'compass' || box.loot.type === 'potion' || box.loot.type === 'boots') {
-        const invSlot = this.player.inventory.find(i => i.type === box.loot.type);
-        if (invSlot) invSlot.quantity += box.loot.value;
-        rewards.push(box.loot.name);
-        this.audio.playReward('uncommon');
-      }
+      const invSlot = this.player.inventory.find(i => i.type === box.loot.type);
+      if (invSlot) invSlot.quantity += box.loot.value;
+      rewards.push(box.loot.name);
+      this.audio.playReward('uncommon');
     }
 
-    // 5. Empty box
     if (rewards.length === 0) {
       rewards.push('Empty...');
       this.audio.playEmpty();
     }
 
-    // Show combined reward
     const rewardText = rewards.join(' | ');
     this.ui.showBoxReward(box.x, box.y, box.type, rewardText, this.camera);
 
-    // Hidden box bonus notification
-    if (isHidden && rewards.length > 1) {
-      this.ui.showNotification('Hidden treasure found! Check your profile to claim tokens.', 'success', 3000);
+    if (box.isRewardChest && !this.wallet.isGuest) {
+      this.ui.showNotification(`Reward chest: ${rewards[0]}`, 'success', 2500);
     }
   }
 
@@ -671,20 +684,7 @@ class Game {
     else if (to === ROUND_STATES.RESULTS) {
       const board = this.onlinePlayers.getLeaderboard(this.player);
       const rewardPool = this.round.getRewardPool();
-      
-      // Calculate reward distribution based on performance
-      const totalBoxes = this.boxes.boxes.filter(b => b.state === 'opened').length || 1;
-      const playerBoxes = this.player.boxesOpened || 0;
-      
-      // Player's share of the reward pool (proportional to boxes opened)
-      const playerShare = Math.floor((playerBoxes / Math.max(totalBoxes, 1)) * rewardPool);
-      
-      // Add the round reward to player's pending tokens (if connected and not guest)
-      if (playerShare > 0 && this.wallet.isConnected() && !this.wallet.isGuest) {
-        this._syncTokensToBackend(playerShare, 'round_reward');
-        this.player.pendingTokens = (this.player.pendingTokens || 0) + playerShare;
-      }
-      
+
       this.round.setResults({
         roundNumber: this.round.getRoundNumber(),
         playerChests: this.player.boxesOpened,
@@ -692,11 +692,16 @@ class Game {
         forfeitedTokens: this._forfeitedTokensTotal || 0,
         roundTime: this.round.getRoundTime(),
         leaderboard: board,
-        rewardPool: rewardPool,
-        playerReward: playerShare,
-        totalBoxesOpened: totalBoxes
+        rewardPool,
+        totalDistributed: this.round.getTotalDistributed(),
+        totalChests: this.boxes.getTotal(),
+        chestsOpened: this.boxes.getTotal() - this.boxes.getRemaining()
       });
       this.ui.showResults(this.round.getResults(), this.wallet);
+    }
+    else if (to === ROUND_STATES.REFILLING) {
+      this.boxes.clear();
+      this.ui.showLobby(this.round, this.wallet, this.onlinePlayers, this.player);
     }
     else if (to === ROUND_STATES.COUNTDOWN) {
       this.ui.showLobby(this.round, this.wallet, this.onlinePlayers, this.player);
@@ -733,6 +738,9 @@ class Game {
     // 1. Map tiles (with edge shadows + animated grass built-in)
     this.map.render(ctx, this.camera);
 
+    // Token billboard on left side of the map
+    this.renderBillboard(ctx);
+
     // 2. Ambient behind-layer particles (fireflies, leaves, dust motes)
     this.particles.renderAmbient(ctx, this.camera);
 
@@ -766,6 +774,66 @@ class Game {
       mctx.imageSmoothingEnabled = false;
       this.map.renderMinimap(mctx, 0, 0, 140, 100, this.player.x, this.player.y, this.boxes.boxes);
     }
+  }
+
+  renderBillboard(ctx) {
+    const bb = this.tokenBillboard.getDisplay();
+    const worldX = 72;
+    const worldY = MAP_HEIGHT * 0.42;
+    const sx = worldX - this.camera.x;
+    const sy = worldY - this.camera.y;
+
+    if (sx < -200 || sx > CANVAS_WIDTH + 200 || sy < -200 || sy > CANVAS_HEIGHT + 200) return;
+
+    ctx.save();
+
+    // Post
+    ctx.fillStyle = '#5D4037';
+    ctx.fillRect(sx - 4, sy + 20, 8, 90);
+    ctx.fillStyle = '#3E2723';
+    ctx.fillRect(sx - 6, sy + 108, 12, 8);
+
+    // Board frame
+    const bw = 140;
+    const bh = 88;
+    const bx = sx - bw / 2;
+    const by = sy - bh / 2;
+
+    ctx.fillStyle = '#2d1b4e';
+    ctx.fillRect(bx - 4, by - 4, bw + 8, bh + 8);
+    ctx.fillStyle = '#4a148c';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#7B1FA2';
+    ctx.fillRect(bx + 4, by + 4, bw - 8, bh - 8);
+
+    // Gold trim
+    ctx.fillStyle = '#FFD700';
+    ctx.fillRect(bx, by, bw, 4);
+    ctx.fillRect(bx, by + bh - 4, bw, 4);
+    ctx.fillRect(bx, by, 4, bh);
+    ctx.fillRect(bx + bw - 4, by, 4, bh);
+
+    // Text
+    ctx.textAlign = 'center';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText(bb.name, sx, by + 24);
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#E1BEE7';
+    ctx.fillText(bb.tagline, sx, by + 40);
+
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('MCAP', sx - 28, by + 62);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText(bb.mcap, sx + 28, by + 62);
+
+    ctx.font = '6px "Press Start 2P"';
+    ctx.fillStyle = '#CE93D8';
+    ctx.fillText(bb.ticker, sx, by + 78);
+
+    ctx.restore();
   }
 
   /* ────────────────────────────────────────────

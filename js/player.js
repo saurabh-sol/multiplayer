@@ -18,6 +18,14 @@ class Player {
     this.frameIndex = 0;
     this.animTimer = 0;
     this.animSpeed = 0.18; // seconds per frame
+    this.velX = 0;
+    this.velY = 0;
+    this.name = 'Hunter';
+    this.speedBoostTime = 0;
+    this.trackingBoostTime = 0;
+    this.luckBoostTime = 0;
+    this.activeSkills = [];
+    this.pendingTokens = 0;
 
     // Attributes
     this.attributes = {
@@ -43,31 +51,51 @@ class Player {
   /* ── Movement & collision ──────────────────────────── */
 
   update(keys, deltaTime, map) {
-    let dx = 0, dy = 0;
+    let inputX = 0, inputY = 0;
 
-    if (keys.left)  dx -= 1;
-    if (keys.right) dx += 1;
-    if (keys.up)    dy -= 1;
-    if (keys.down)  dy += 1;
+    if (keys.left)  inputX -= 1;
+    if (keys.right) inputX += 1;
+    if (keys.up)    inputY -= 1;
+    if (keys.down)  inputY += 1;
 
-    this.isMoving = (dx !== 0 || dy !== 0);
-
-    // Set facing direction
-    if (dy < 0) this.direction = 'up';
-    else if (dy > 0) this.direction = 'down';
-    if (dx < 0) this.direction = 'left';
-    else if (dx > 0) this.direction = 'right';
-
-    // Normalise diagonal
-    if (dx !== 0 && dy !== 0) {
+    if (inputX !== 0 && inputY !== 0) {
       const inv = 1 / Math.SQRT2;
-      dx *= inv;
-      dy *= inv;
+      inputX *= inv;
+      inputY *= inv;
     }
 
-    const speed = this.getMoveSpeed() * deltaTime;
-    const nextX = this.x + dx * speed;
-    const nextY = this.y + dy * speed;
+    const maxSpeed = this.getMoveSpeed();
+    const targetVelX = inputX * maxSpeed;
+    const targetVelY = inputY * maxSpeed;
+    const hasInput = inputX !== 0 || inputY !== 0;
+
+    if (hasInput) {
+      const blend = 1 - Math.pow(0.00001, deltaTime * 8);
+      this.velX += (targetVelX - this.velX) * blend;
+      this.velY += (targetVelY - this.velY) * blend;
+    } else {
+      const friction = Math.pow(0.00001, deltaTime * 6);
+      this.velX *= friction;
+      this.velY *= friction;
+      if (Math.abs(this.velX) < 2) this.velX = 0;
+      if (Math.abs(this.velY) < 2) this.velY = 0;
+    }
+
+    this.isMoving = Math.hypot(this.velX, this.velY) > 8;
+
+    if (Math.abs(this.velY) > Math.abs(this.velX) * 0.6) {
+      if (this.velY < -5) this.direction = 'up';
+      else if (this.velY > 5) this.direction = 'down';
+    }
+    if (Math.abs(this.velX) > 5) {
+      if (this.velX < 0) this.direction = 'left';
+      else if (this.velX > 0) this.direction = 'right';
+    }
+
+    const nextX = this.x + this.velX * deltaTime;
+    const nextY = this.y + this.velY * deltaTime;
+    const dx = nextX - this.x;
+    const dy = nextY - this.y;
 
     // Collision — check four corners of the sprite hitbox
     // Use a smaller hitbox (inner 20×16 around feet) for nicer feel
@@ -77,27 +105,29 @@ class Player {
     const hbH = 14;
 
     // Try X movement
-    if (dx !== 0 && map) {
+    if (Math.abs(dx) > 0.01 && map) {
       const testX = nextX;
       const tl = map.isWalkable(testX + hbOx,         this.y + hbOy);
       const tr = map.isWalkable(testX + hbOx + hbW,   this.y + hbOy);
       const bl = map.isWalkable(testX + hbOx,         this.y + hbOy + hbH);
       const br = map.isWalkable(testX + hbOx + hbW,   this.y + hbOy + hbH);
       if (tl && tr && bl && br) this.x = testX;
-    } else if (dx !== 0) {
+      else this.velX = 0;
+    } else if (Math.abs(dx) > 0.01) {
       this.x = nextX;
     }
 
     // Try Y movement
-    if (dy !== 0 && map) {
+    if (Math.abs(dy) > 0.01 && map) {
       const testY = nextY;
       const tl = map.isWalkable(this.x + hbOx,        testY + hbOy);
       const tr = map.isWalkable(this.x + hbOx + hbW,  testY + hbOy);
       const bl = map.isWalkable(this.x + hbOx,        testY + hbOy + hbH);
       const br = map.isWalkable(this.x + hbOx + hbW,  testY + hbOy + hbH);
       if (tl && tr && bl && br) this.y = testY;
-    } else if (dy !== 0) {
-      this.y = nextY;
+      else this.velY = 0;
+    } else if (Math.abs(dy) > 0.01) {
+      this.y = testY;
     }
 
     // Clamp to map bounds
@@ -125,6 +155,10 @@ class Player {
 
     // Detection radius pulse
     this._radiusPulse += deltaTime * 2;
+
+    if (this.speedBoostTime > 0) this.speedBoostTime -= deltaTime;
+    if (this.trackingBoostTime > 0) this.trackingBoostTime -= deltaTime;
+    if (this.luckBoostTime > 0) this.luckBoostTime -= deltaTime;
   }
 
   /* ── Rendering ────────────────────────────────────── */
@@ -354,8 +388,18 @@ class Player {
   /* ── Attribute-derived getters ────────────────────── */
 
   /** Detection radius in pixels (tracking determines range) */
+  getEffectiveTracking() {
+    const boost = this.trackingBoostTime > 0 ? 3 : 0;
+    return this.attributes.tracking + boost;
+  }
+
+  getEffectiveLuck() {
+    const boost = this.luckBoostTime > 0 ? 3 : 0;
+    return this.attributes.luck + boost;
+  }
+
   getDetectionRadius() {
-    return 120 + this.attributes.tracking * 15;
+    return 120 + this.getEffectiveTracking() * 15;
   }
 
   /** Time to open a box in milliseconds (hunting reduces it) */
@@ -365,7 +409,11 @@ class Player {
 
   /** Movement speed in pixels/second */
   getMoveSpeed() {
-    return 120 + this.attributes.speed * 12;
+    let speed = 120 + this.attributes.speed * 12;
+    if (this.speedBoostTime > 0) speed *= 1.5;
+    const phantom = this.activeSkills?.find(s => s.id === 'phantom_step' && s.expiresAt > Date.now());
+    if (phantom) speed *= 1.3;
+    return speed;
   }
 
   /* ── Energy management ────────────────────────────── */

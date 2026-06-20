@@ -82,12 +82,15 @@ class UIManager {
       roundNumber: roundManager.getRoundNumber(),
       state: roundManager.getState(),
       countdown: roundManager.getCountdown(),
-      totalBoxes: 30 + roundManager.getRoundNumber() * 5,
+      totalBoxes: ROUND_CONFIG.TOTAL_CHESTS,
       rewardPool: roundManager.getRewardPool(),
       onlinePlayers: fakeMultiplayer.getOnlineCount(),
+      walletPlayers: fakeMultiplayer.getWalletPlayerCount?.() ?? 0,
       leaderboard: fakeMultiplayer.getLeaderboard({ name: 'You', boxesOpened: 0, tokensEarned: 0 }),
       isGuest: walletManager.isGuest,
-      playerAttributes: player ? player.attributes : null
+      playerAttributes: player ? player.attributes : null,
+      waitingForPlayers: roundManager.waitingForPlayers,
+      playersNeeded: roundManager.getWalletPlayersNeeded?.() ?? roundManager.getPlayersNeeded()
     });
   }
 
@@ -111,15 +114,16 @@ class UIManager {
     
     // Round reward pool distribution
     const rewardPool = roundResults.rewardPool || 0;
-    const playerReward = roundResults.playerReward || 0;
-    const totalBoxes = roundResults.totalBoxesOpened || 1;
-    const sharePercent = totalBoxes > 0 ? Math.round((roundResults.playerChests / totalBoxes) * 100) : 0;
-    
+    const totalDistributed = roundResults.totalDistributed ?? roundResults.playerTokens ?? 0;
+    const chestsOpened = roundResults.chestsOpened ?? roundResults.playerChests ?? 0;
+    const totalChests = roundResults.totalChests ?? ROUND_CONFIG.TOTAL_CHESTS;
+    const distPercent = rewardPool > 0 ? Math.round((totalDistributed / rewardPool) * 100) : 0;
+
     document.getElementById('results-pool-amount').innerText = `${rewardPool.toLocaleString()} $HUNT`;
-    document.getElementById('results-your-share').innerText = `${playerReward.toLocaleString()} $HUNT`;
-    document.getElementById('results-share-percent').innerText = `${sharePercent}%`;
-    document.getElementById('results-round-reward').innerText = `${playerReward.toLocaleString()} $HUNT`;
-    document.getElementById('results-total-boxes').innerText = `${roundResults.playerChests}/${totalBoxes}`;
+    document.getElementById('results-your-share').innerText = `${totalDistributed.toLocaleString()} $HUNT`;
+    document.getElementById('results-share-percent').innerText = `${distPercent}%`;
+    document.getElementById('results-round-reward').innerText = `${roundResults.playerTokens.toLocaleString()} $HUNT`;
+    document.getElementById('results-total-boxes').innerText = `${chestsOpened}/${totalChests}`;
     
     // Time formatting
     const mins = Math.floor(roundResults.roundTime / 60).toString().padStart(2, '0');
@@ -148,7 +152,7 @@ class UIManager {
     const warning = document.getElementById('results-forfeit-warning');
     if (walletManager.isGuest) {
       warning.classList.remove('hidden');
-      const forfeitedAmount = (roundResults.forfeitedTokens || 0) + playerReward;
+      const forfeitedAmount = roundResults.forfeitedTokens || 0;
       warning.querySelector('strong').innerText = `FORFEITED: ${forfeitedAmount.toLocaleString()} $HUNT`;
     } else {
       warning.classList.add('hidden');
@@ -158,14 +162,18 @@ class UIManager {
   updateHUD(data) {
     if (this.currentScreen !== 'game') return;
 
-    // Stats
     document.getElementById('hud-chests-left').innerText = `${data.boxesRemaining} / ${data.totalBoxes}`;
-    
-    const poolRemaining = data.rewardPoolRemaining ?? data.rewardPool;
-    if (poolRemaining >= 1000) {
-      document.getElementById('hud-reward-pool').innerText = `${(poolRemaining / 1000).toFixed(0)}K $HUNT`;
+
+    const pool = data.rewardPool ?? 0;
+    if (pool >= 1000) {
+      document.getElementById('hud-reward-pool').innerText = `${(pool / 1000).toFixed(0)}K $HUNT`;
     } else {
-      document.getElementById('hud-reward-pool').innerText = `${poolRemaining.toLocaleString()} $HUNT`;
+      document.getElementById('hud-reward-pool').innerText = `${pool.toLocaleString()} $HUNT`;
+    }
+
+    const earnedEl = document.getElementById('hud-tokens-earned');
+    if (earnedEl) {
+      earnedEl.innerText = `${(data.tokensEarned || 0).toLocaleString()} $HUNT`;
     }
 
     // Rank
@@ -293,7 +301,7 @@ class UIManager {
   }
 
   showGuestWarning() {
-    this.showNotification("Connected as Guest! You cannot claim mainnet rewards.", "warning", 4000);
+    this.showNotification('Guest mode: explore freely, but connect wallet to earn $HUNT from reward chests.', 'warning', 4500);
   }
 
   updateLobby(data) {
@@ -303,14 +311,20 @@ class UIManager {
     document.getElementById('lobby-reward-pool').innerText = `${data.rewardPool.toLocaleString()} $HUNT`;
     document.getElementById('lobby-online-count').innerText = `${data.onlinePlayers} Hunters Online`;
     document.getElementById('lobby-countdown-timer').innerText = data.countdown;
-    document.getElementById('lobby-chest-count').innerText = `${data.totalBoxes} Hidden`;
+    document.getElementById('lobby-chest-count').innerText = `${data.totalBoxes} (15 Reward + 50 Gold)`;
 
-    // Status Badge modifier
+    const walletEl = document.getElementById('lobby-wallet-count');
+    if (walletEl) {
+      walletEl.innerText = `${data.walletPlayers ?? 0} / ${ROUND_CONFIG.MIN_WALLET_PLAYERS}`;
+    }
+
     const badge = document.getElementById('lobby-status-badge');
-    if (data.waitingForPlayers && !data.isTestingMode) {
-      badge.innerHTML = `<span class="status-badge waiting-players"><span class="status-dot"></span>WAITING FOR PLAYERS</span>`;
-      // Show players needed
-      document.getElementById('lobby-countdown-timer').innerText = `${data.playersNeeded} more needed`;
+    if (data.waitingForPlayers) {
+      badge.innerHTML = `<span class="status-badge waiting-players"><span class="status-dot"></span>WAITING FOR WALLET HUNTERS</span>`;
+      document.getElementById('lobby-countdown-timer').innerText = `${data.playersNeeded} more wallet hunters needed`;
+    } else if (data.state === 'REFILLING') {
+      badge.innerHTML = `<span class="status-badge waiting"><span class="status-dot"></span>PREPARING NEXT ROUND</span>`;
+      document.getElementById('lobby-countdown-timer').innerText = `${data.countdown}s`;
     } else if (data.state === 'WAITING') {
       badge.innerHTML = `<span class="status-badge waiting"><span class="status-dot"></span>WAITING</span>`;
     } else if (data.state === 'COUNTDOWN') {
@@ -323,10 +337,9 @@ class UIManager {
     const warning = document.getElementById('lobby-guest-warning');
     if (data.isGuest) {
       warning.classList.remove('hidden');
-      // Update guest warning text to mention testing mode
       warning.innerHTML = `
-        <p>⚠️ <strong>Testing Mode</strong> - Connect wallet to earn real $HUNT rewards!</p>
-        <p style="font-size: 12px; margin-top: 4px;">Guest players don't require minimum 10 players to start.</p>
+        <p>⚠️ <strong>Guest Mode</strong> — You can explore and open gold chests, but reward rounds require a connected wallet.</p>
+        <p style="font-size: 12px; margin-top: 4px;">Purple reward chests are wallet-only. Connect wallet to earn $HUNT.</p>
       `;
     } else {
       warning.classList.add('hidden');
@@ -350,7 +363,7 @@ class UIManager {
       li.innerHTML = `
         <span class="rank" style="color: ${rankColor}">#${index + 1}</span>
         <span class="name">${item.name}</span>
-        <span class="score">${item.boxesOpened} chests</span>
+        <span class="score">${item.boxesOpened} chests · ${item.tokensEarned.toLocaleString()} $HUNT</span>
       `;
       list.appendChild(li);
     });
