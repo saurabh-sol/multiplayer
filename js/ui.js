@@ -160,15 +160,32 @@ class UIManager {
 
     // Stats
     document.getElementById('hud-chests-left').innerText = `${data.boxesRemaining} / ${data.totalBoxes}`;
-    document.getElementById('hud-reward-pool').innerText = `${(data.rewardPool / 1000).toFixed(0)}K $HUNT`;
     
-    // Timer
-    const mins = Math.floor(data.roundTime / 60).toString().padStart(2, '0');
-    const secs = Math.floor(data.roundTime % 60).toString().padStart(2, '0');
-    document.getElementById('hud-round-timer').innerText = `${mins}:${secs}`;
+    const poolRemaining = data.rewardPoolRemaining ?? data.rewardPool;
+    if (poolRemaining >= 1000) {
+      document.getElementById('hud-reward-pool').innerText = `${(poolRemaining / 1000).toFixed(0)}K $HUNT`;
+    } else {
+      document.getElementById('hud-reward-pool').innerText = `${poolRemaining.toLocaleString()} $HUNT`;
+    }
 
     // Rank
     document.getElementById('hud-hunter-rank').innerText = `#${data.rank}`;
+
+    // Online players list
+    const countEl = document.getElementById('online-count');
+    const listEl = document.getElementById('online-players-list');
+    if (countEl) countEl.innerText = data.onlinePlayers || 1;
+    if (listEl && data.onlinePlayerList) {
+      listEl.innerHTML = '';
+      data.onlinePlayerList.forEach(p => {
+        const li = document.createElement('li');
+        li.className = `online-player-item ${p.isYou ? 'is-you' : (p.isGuest ? 'is-guest' : 'is-wallet')}`;
+        li.textContent = p.isYou
+          ? `${p.name} (You)`
+          : (p.isGuest ? `${p.name} (Guest)` : p.name);
+        listEl.appendChild(li);
+      });
+    }
 
     // Wallet display
     const addr = document.getElementById('hud-wallet-address');

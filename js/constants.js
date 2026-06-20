@@ -69,7 +69,7 @@ const BOX_TYPES = {
   HIDDEN_SPECIAL: { 
     name: 'Special Box', 
     color: '#AB47BC', 
-    points: 350, 
+    points: 3500, 
     tokenReward: 0, 
     rarity: 'rare',
     visibility: 'hidden',
@@ -78,15 +78,15 @@ const BOX_TYPES = {
   HIDDEN_TOKEN: { 
     name: 'Token Box', 
     color: '#66BB6A', 
-    points: 100, 
-    tokenReward: 500, 
+    points: 2500, 
+    tokenReward: 0, 
     rarity: 'rare',
     visibility: 'hidden'
   },
   HIDDEN_RARE_ITEM: { 
     name: 'Rare Item Box', 
     color: '#FFA726', 
-    points: 200, 
+    points: 2000, 
     tokenReward: 0, 
     rarity: 'epic',
     visibility: 'hidden',
@@ -95,8 +95,8 @@ const BOX_TYPES = {
   HIDDEN_JACKPOT: { 
     name: 'Jackpot Box', 
     color: '#FFD700', 
-    points: 1000, 
-    tokenReward: 5000, 
+    points: 25000, 
+    tokenReward: 0, 
     rarity: 'legendary',
     visibility: 'hidden',
     hasSkill: true

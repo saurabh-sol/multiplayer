@@ -22,6 +22,9 @@ class RoundManager {
     /** Total token reward pool for this round */
     this.rewardPool = 0;
 
+    /** Remaining $HUNT left to distribute this round */
+    this.rewardPoolRemaining = 0;
+
     /** Seconds remaining in the countdown phase */
     this.countdownTime = 0;
 
@@ -98,6 +101,7 @@ class RoundManager {
     this._started = true;
     this.roundNumber = 1;
     this.rewardPool = this._calcRewardPool();
+    this.rewardPoolRemaining = this.rewardPool;
     this._stateTimer = 0;
     this.roundTime = 0;
     this.countdownTime = this.COUNTDOWN_DURATION;
@@ -152,6 +156,11 @@ class RoundManager {
       case ROUND_STATES.LIVE:
         this.roundTime += deltaTime;
 
+        // End when reward pool fully distributed
+        if (this.rewardPoolRemaining <= 0) {
+          return this._transition(ROUND_STATES.ENDING);
+        }
+
         // End when every claimable box has been opened
         if (boxManager && boxManager.getClaimableRemaining() <= 0) {
           return this._transition(ROUND_STATES.ENDING);
@@ -183,6 +192,7 @@ class RoundManager {
           // Advance to next round
           this.roundNumber++;
           this.rewardPool = this._calcRewardPool();
+          this.rewardPoolRemaining = this.rewardPool;
           this.roundTime = 0;
           this.results = null;
           return this._transition(ROUND_STATES.COUNTDOWN);
@@ -209,6 +219,15 @@ class RoundManager {
    */
   getRewardPool() {
     return this.rewardPool;
+  }
+
+  getRewardPoolRemaining() {
+    return this.rewardPoolRemaining;
+  }
+
+  consumeFromPool(amount) {
+    if (!amount || amount <= 0) return;
+    this.rewardPoolRemaining = Math.max(0, this.rewardPoolRemaining - amount);
   }
 
   /** @returns {number} Seconds remaining in the countdown */

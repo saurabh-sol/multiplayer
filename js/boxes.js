@@ -33,6 +33,13 @@ class Box {
   _generateLoot() {
     const type = this.type;
     
+    // Hidden box point rolls (1200-5000 for most, 20k-30k for jackpot)
+    if (type === 'HIDDEN_JACKPOT') {
+      this.points = 20000 + Math.floor(Math.random() * 10001);
+    } else if (type.startsWith('HIDDEN_')) {
+      this.points = 1200 + Math.floor(Math.random() * 3801);
+    }
+    
     // Normal box loot
     if (type === 'NORMAL_ITEM') {
       const rand = Math.random();
@@ -60,14 +67,11 @@ class Box {
         this.loot = { type: 'potion', name: 'Mega Potion', value: 3 };
       }
     }
-    
-    if (type === 'HIDDEN_TOKEN') {
-      // Variable token amount
-      this.tokenReward = 100 + Math.floor(Math.random() * 900); // 100-1000
-    }
-    
-    if (type === 'HIDDEN_JACKPOT') {
-      this.tokenReward = 2000 + Math.floor(Math.random() * 3000); // 2000-5000
+
+    // Token amounts assigned from round pool via allocateTokenPool()
+    if (type === 'HIDDEN_TOKEN' || type === 'HIDDEN_JACKPOT') {
+      this.tokenReward = 0;
+      this.isClaimable = false;
     }
   }
 }
@@ -137,6 +141,47 @@ class BoxManager {
       const box = new Box(pt.x, pt.y, selectedType);
       this.boxes.push(box);
     }
+  }
+
+  /**
+   * Distribute the round $HUNT pool across token/jackpot chests.
+   * Total assigned token rewards will equal the pool exactly.
+   */
+  allocateTokenPool(totalPool) {
+    const tokenBoxes = this.boxes.filter(b =>
+      b.type === 'HIDDEN_TOKEN' || b.type === 'HIDDEN_JACKPOT'
+    );
+
+    if (tokenBoxes.length === 0 || totalPool <= 0) return 0;
+
+    const shuffled = [...tokenBoxes].sort(() => Math.random() - 0.5);
+    let remaining = totalPool;
+    const minPerBox = Math.max(500, Math.floor(totalPool / (shuffled.length * 3)));
+
+    for (let i = 0; i < shuffled.length; i++) {
+      const boxesLeft = shuffled.length - i;
+      let amount;
+
+      if (i === shuffled.length - 1) {
+        amount = remaining;
+      } else {
+        const fairShare = Math.floor(remaining / boxesLeft);
+        const variance = Math.floor(fairShare * (0.5 + Math.random() * 0.8));
+        amount = Math.max(minPerBox, Math.min(variance, remaining - (boxesLeft - 1) * minPerBox));
+      }
+
+      shuffled[i].tokenReward = amount;
+      shuffled[i].isClaimable = amount > 0;
+      remaining -= amount;
+    }
+
+    return totalPool;
+  }
+
+  getTotalTokenValueRemaining() {
+    return this.boxes
+      .filter(b => b.isClaimable && b.state !== 'opened')
+      .reduce((sum, b) => sum + (b.tokenReward || 0), 0);
   }
   
   _pickType(distribution) {

@@ -313,6 +313,8 @@ class Game {
       this.boxes.update(this.player, deltaTime);
       this.compass.update(this.player, this.boxes, deltaTime);
       this.particles.update(deltaTime);
+      this.onlinePlayers.setRoundContext(this.round.getRoundNumber(), state);
+      this.onlinePlayers.update();
 
       // --- Atmosphere cycle ---
       this._atmosphereTime += deltaTime;
@@ -372,10 +374,15 @@ class Game {
         inventory: invMap,
         walletAddress: this.wallet.getDisplayAddress(),
         isGuest: this.wallet.isGuest,
-        rewardPool: this.round.getRewardPool()
+        rewardPool: this.round.getRewardPool(),
+        rewardPoolRemaining: this.round.getRewardPoolRemaining(),
+        onlinePlayers: this.onlinePlayers.getOnlineCount(),
+        onlinePlayerList: this.onlinePlayers.getOnlinePlayerList(),
+        playerName: this.player.name
       });
     }
     else if (state === ROUND_STATES.COUNTDOWN || state === ROUND_STATES.WAITING) {
+      this.onlinePlayers.setRoundContext(this.round.getRoundNumber(), state);
       this.ui.updateLobby({
         roundNumber: this.round.getRoundNumber(),
         state: state,
@@ -443,6 +450,9 @@ class Game {
 
     // 2. Token reward (hidden token/jackpot boxes)
     if (box.tokenReward > 0) {
+      // Deduct from round pool — round ends when pool hits 0
+      this.round.consumeFromPool(box.tokenReward);
+
       if (this.wallet.isGuest) {
         this._forfeitedTokensTotal = (this._forfeitedTokensTotal || 0) + box.tokenReward;
         this.ui.showNotification(
@@ -641,6 +651,10 @@ class Game {
     if (to === ROUND_STATES.LIVE) {
       const points = this.map.getSpawnPoints(80);
       this.boxes.spawnBoxes(points, this.round.getRoundNumber());
+      this.boxes.allocateTokenPool(this.round.getRewardPool());
+      this.round.rewardPoolRemaining = this.round.getRewardPool();
+      this.onlinePlayers.setRoundContext(this.round.getRoundNumber(), to);
+      this.onlinePlayers.reset();
       this.player.x = MAP_WIDTH / 2;
       this.player.y = MAP_HEIGHT / 2;
       this.player.resetRoundStats();
@@ -725,7 +739,8 @@ class Game {
     // 3. Boxes
     this.boxes.render(ctx, this.camera);
 
-    // 4. (Removed AI bots - now online multiplayer only)
+    // 4. Other online players (guests + wallet users)
+    this.onlinePlayers.render(ctx, this.camera);
 
     // 5. Player
     this.player.render(ctx, this.camera);

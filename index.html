@@ -197,10 +197,15 @@
 
     <!-- UI Overlay: Active Gameplay HUD -->
     <div id="game-hud" class="hidden">
-      <!-- Online Players Bar -->
-      <div class="online-players-bar">
-        <span class="online-dot"></span>
-        <span class="online-count" id="online-count">1</span> Players Online
+      <!-- Online Players Panel (left side) -->
+      <div class="online-players-panel">
+        <div class="online-players-header">
+          <span class="online-dot"></span>
+          <span><span class="online-count" id="online-count">1</span> Online</span>
+        </div>
+        <ul class="online-players-list" id="online-players-list">
+          <li class="online-player-item is-you">You</li>
+        </ul>
       </div>
       
       <!-- Top HUD Stats -->
@@ -215,15 +220,8 @@
         <div class="hud-stat">
           <span class="hud-stat-icon">🪙</span>
           <div>
-            <div class="hud-stat-label">Reward Pool</div>
+            <div class="hud-stat-label">Pool Left</div>
             <div class="hud-stat-value" id="hud-reward-pool">100K $HUNT</div>
-          </div>
-        </div>
-        <div class="hud-stat">
-          <span class="hud-stat-icon">⏱️</span>
-          <div>
-            <div class="hud-stat-label">Time</div>
-            <div class="hud-stat-value" id="hud-round-timer">00:00</div>
           </div>
         </div>
         <div class="hud-stat">
