@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: multiplayer-utlw
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://playtrezo.com,http://localhost:8080,http://localhost:8081

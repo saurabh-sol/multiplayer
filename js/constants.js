@@ -20,8 +20,14 @@ const ROUND_STATES = {
   REFILLING: 'REFILLING'
 };
 
-// API Configuration
-const API_BASE_URL = 'https://multiplayer-utlw.onrender.com/api';
+// API Configuration — use local backend on localhost, production URL otherwise
+const API_BASE_URL = (() => {
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'http://localhost:3001/api';
+  }
+  return 'https://multiplayer-utlw.onrender.com/api';
+})();
 
 // Two-tier box system: Normal (visible) and Hidden (require detection)
 const BOX_TYPES = {

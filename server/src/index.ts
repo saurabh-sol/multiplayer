@@ -62,4 +62,5 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.listen(PORT, () => {
   console.log(`🚀 Treasure Hunt Server running on http://localhost:${PORT}`);
   console.log(`📊 API: http://localhost:${PORT}/api`);
+  console.log(`🌐 CORS origins: ${Array.isArray(corsOrigins) ? corsOrigins.join(', ') : 'all (reflect origin)'}`);
 });
